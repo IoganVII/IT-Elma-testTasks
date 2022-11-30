@@ -3,17 +3,17 @@ package arrayOperationService
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"sort"
+	"sync"
 )
 
 const urlCheckService = "https://kuvaev-ituniversity.vps.elewise.com"
-
-type input2 interface {
-}
+const apiNameRotationArray = "Циклическая ротация"
+const apiNameFindLoner = "Чудные вхождения в массив"
+const apiNameCheckSequence = "Проверка последовательности"
+const apiNameSkipElement = "Поиск отсутствующего элемента"
 
 type inputDataTask struct {
 	data       []float64
@@ -29,7 +29,7 @@ func NewService() serviceWorkArray {
 
 // Функция получает данные от сервиса по конкретной задаче
 func getInputData(urlPath string) []inputDataTask {
-	resp, err := http.Get(urlCheckService + urlPath)
+	resp, err := http.Get(urlCheckService + "/tasks/" + urlPath)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -46,38 +46,24 @@ func getInputData(urlPath string) []inputDataTask {
 		log.Fatalln(err)
 	}
 
-	var VinputData []inputDataTask
+	var arrayInputDataTask []inputDataTask
 
 	for _, data := range inpudData {
-		var current inputDataTask
+		var currentInputDataTask inputDataTask
 		if len(data.([]interface{})) > 1 {
-			current.countStart = data.([]interface{})[1].(float64)
+			currentInputDataTask.countStart = data.([]interface{})[1].(float64)
 		}
 		for _, i := range data.([]interface{})[0].([]interface{}) {
-			current.data = append(current.data, i.(float64))
+			currentInputDataTask.data = append(currentInputDataTask.data, i.(float64))
 		}
-		VinputData = append(VinputData, current)
+		arrayInputDataTask = append(arrayInputDataTask, currentInputDataTask)
 	}
-	//Разобраться потом в этом, сортировка работает - но умом пока не понимаю
-	sort.Slice(VinputData[:], func(i, j int) bool {
-		return VinputData[i].countStart < VinputData[j].countStart
-	})
 
-	return VinputData
+	return arrayInputDataTask
 
 }
 
-func convertFloat64ToInt(ar []float64) []int {
-	newar := make([]int, len(ar))
-	var v float64
-	var i int
-	for i, v = range ar {
-		newar[i] = int(v)
-	}
-	return newar
-}
-
-func requestPost(nameApi string, inputArray []interface{}, resultArray []interface{}) {
+func requestPost(nameApi string, inputArray []interface{}, resultArray []interface{}) []byte {
 	httpPostUrl := urlCheckService + "/tasks/solution"
 
 	message := map[string]interface{}{
@@ -90,9 +76,6 @@ func requestPost(nameApi string, inputArray []interface{}, resultArray []interfa
 	}
 
 	bytesRepresentation, err := json.Marshal(message)
-
-	//fmt.Println(string(bytesRepresentation))
-
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -104,95 +87,64 @@ func requestPost(nameApi string, inputArray []interface{}, resultArray []interfa
 
 	body, _ := ioutil.ReadAll(resp.Body)
 
-	fmt.Println(string(body))
+	return body
+}
 
+func doTask(nameApi string, w http.ResponseWriter, wg ...*sync.WaitGroup) {
+
+	// Как же тут больно передавать необязательные параметры(
+	defer func() {
+		if len(wg) > 0 {
+			wg[0].Done()
+		}
+	}()
+
+	inputDataTask := getInputData(nameApi)
+
+	var elementForInputArray []interface{}
+	var resultArray []interface{}
+	var inputArray []interface{}
+
+	for _, data := range inputDataTask {
+		elementForInputArray := append(elementForInputArray, data.data)
+		if data.countStart > 0 {
+			elementForInputArray = append(elementForInputArray, data.countStart)
+		}
+		inputArray = append(inputArray, elementForInputArray)
+		switch nameApi {
+		case apiNameRotationArray:
+			resultArray = append(resultArray, arrayRotation(convertFloat64ToInt(data.data), int(data.countStart)))
+		case apiNameFindLoner:
+			resultArray = append(resultArray, arrayFindLoner(convertFloat64ToInt(data.data)))
+		case apiNameCheckSequence:
+			resultArray = append(resultArray, arrayCheckSequence(convertFloat64ToInt(data.data)))
+		case apiNameSkipElement:
+			resultArray = append(resultArray, arrayFindSkipEelement(convertFloat64ToInt(data.data)))
+		}
+	}
+	response := requestPost(nameApi, inputArray, resultArray)
+	w.Write([]byte("\n" + "Ответ по задаче: " + nameApi + "\n" + string(response)))
 }
 
 func (s serviceWorkArray) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/tasks/Циклическая ротация" {
-		inputDataTask := getInputData(r.URL.Path)
 
-		var elementForInputArray []interface{}
-		var resultArray []interface{}
-		var inputArray []interface{}
-
-		for _, data := range inputDataTask {
-			elementForInputArray := append(elementForInputArray, data.data)
-			elementForInputArray = append(elementForInputArray, data.countStart)
-			inputArray = append(inputArray, elementForInputArray)
-			resultArray = append(resultArray, ArrayRotation(convertFloat64ToInt(data.data), int(data.countStart)))
-		}
-
-		//fmt.Println(inputArray, resultArray)
-
-		requestPost("Циклическая ротация", inputArray, resultArray)
-
-	}
-
-	if r.URL.Path == "/tasks/Чудные вхождения в массив" {
-		inputDataTask := getInputData(r.URL.Path)
-
-		var elementForInputArray []interface{}
-		var resultArray []interface{}
-		var inputArray []interface{}
-
-		for _, data := range inputDataTask {
-			elementForInputArray := append(elementForInputArray, data.data)
-			if data.countStart > 0 {
-				elementForInputArray = append(elementForInputArray, data.countStart)
-			}
-			inputArray = append(inputArray, elementForInputArray)
-			resultArray = append(resultArray, ArrayFindLoner(convertFloat64ToInt(data.data)))
-		}
-
-		//fmt.Println(inputArray, resultArray)
-
-		requestPost("Чудные вхождения в массив", inputArray, resultArray)
-
-	}
-
-	if r.URL.Path == "/tasks/Проверка последовательности" {
-		inputDataTask := getInputData(r.URL.Path)
-
-		var elementForInputArray []interface{}
-		var resultArray []interface{}
-		var inputArray []interface{}
-
-		for _, data := range inputDataTask {
-			elementForInputArray := append(elementForInputArray, data.data)
-			if data.countStart > 0 {
-				elementForInputArray = append(elementForInputArray, data.countStart)
-			}
-			inputArray = append(inputArray, elementForInputArray)
-			resultArray = append(resultArray, ArrayCheckSequence(convertFloat64ToInt(data.data)))
-		}
-
-		//fmt.Println(inputArray, resultArray)
-
-		requestPost("Проверка последовательности", inputArray, resultArray)
-
-	}
-
-	if r.URL.Path == "/tasks/Поиск отсутствующего элемента" {
-		inputDataTask := getInputData(r.URL.Path)
-
-		var elementForInputArray []interface{}
-		var resultArray []interface{}
-		var inputArray []interface{}
-
-		for _, data := range inputDataTask {
-			elementForInputArray := append(elementForInputArray, data.data)
-			if data.countStart > 0 {
-				elementForInputArray = append(elementForInputArray, data.countStart)
-			}
-			inputArray = append(inputArray, elementForInputArray)
-			resultArray = append(resultArray, ArrayFindSkipEelement(convertFloat64ToInt(data.data)))
-		}
-
-		//fmt.Println(inputArray, resultArray)
-
-		requestPost("Поиск отсутствующего элемента", inputArray, resultArray)
-
+	switch r.URL.Path {
+	case "/task/" + apiNameRotationArray:
+		doTask(apiNameRotationArray, w)
+	case "/task/" + apiNameFindLoner:
+		doTask(apiNameFindLoner, w)
+	case "/task/" + apiNameCheckSequence:
+		doTask(apiNameCheckSequence, w)
+	case "/task/" + apiNameSkipElement:
+		doTask(apiNameSkipElement, w)
+	case "/tasks":
+		var wg sync.WaitGroup
+		wg.Add(4)
+		go doTask(apiNameRotationArray, w, &wg)
+		go doTask(apiNameFindLoner, w, &wg)
+		go doTask(apiNameCheckSequence, w, &wg)
+		go doTask(apiNameSkipElement, w, &wg)
+		wg.Wait()
 	}
 
 }

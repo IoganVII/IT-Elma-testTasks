@@ -1,6 +1,8 @@
 package arrayOperationService
 
-func ArrayRotation(inputArray []int, countRotation int) []int {
+import "sort"
+
+func arrayRotation(inputArray []int, countRotation int) []int {
 	lengthInputArray := len(inputArray)
 	for rotationIncrement := 0; rotationIncrement < countRotation; rotationIncrement++ {
 		lastElement := inputArray[lengthInputArray-1]
@@ -14,100 +16,49 @@ func ArrayRotation(inputArray []int, countRotation int) []int {
 	return inputArray
 }
 
-func ArrayCheckSequence(inputArray []int) int {
-	minElement := inputArray[0]
-	maxElement := inputArray[0]
-	isSequence := true
+func arrayCheckSequence(inputArray []int) int {
 
-	for i := 1; i < len(inputArray); i++ {
-		if inputArray[i] < minElement {
-			minElement = inputArray[i]
-		}
-		if inputArray[i] > maxElement {
-			maxElement = inputArray[i]
+	sort.Slice(inputArray[:], func(i, j int) bool {
+		return inputArray[i] < inputArray[j]
+	})
+
+	for i := 0; i < len(inputArray)-1; i++ {
+		if inputArray[i]+1 != inputArray[i+1] {
+			return 0
 		}
 	}
-	var countInput int
-	for elemtnValue := minElement; elemtnValue <= maxElement; elemtnValue++ {
-		countInput = 0
-		for j := 0; j < len(inputArray); j++ {
-			if inputArray[j] == elemtnValue {
-				countInput++
-				if countInput > 1 {
-					break
-				}
-			}
-		}
-		if countInput == 0 || countInput > 1 {
-			isSequence = false
-			break
-		}
-	}
-
-	if isSequence {
-		return 1
-	} else {
-		return 0
-	}
-
+	return 1
 }
 
-func ArrayFindLoner(inputArray []int) int {
-	var result int
-	for i := 0; i < len(inputArray); i++ {
+func arrayFindLoner(inputArray []int) int {
 
-		if i == len(inputArray)-1 {
-			return inputArray[i]
-		}
+	var hashMap = make(map[int]bool)
 
-		if inputArray[i] == 0 {
-			continue
-		}
+	for _, data := range inputArray {
+		hashMap[data] = !hashMap[data]
+	}
 
-		isFind := false
-		temp := inputArray[i]
-		for j := i + 1; j < len(inputArray); j++ {
-			if inputArray[j] == temp {
-				isFind = true
-				inputArray[j] = 0
-			}
-		}
-		if !isFind {
-			result = inputArray[i]
-			break
+	for key, data := range hashMap {
+		if data {
+			return key
 		}
 	}
-	return result
+
+	return 0
 }
 
-func ArrayFindSkipEelement(inputArray []int) int {
-	minElement := inputArray[0]
-	maxElement := inputArray[0]
-	result := -1
+func arrayFindSkipEelement(inputArray []int) int {
 
-	for i := 1; i < len(inputArray); i++ {
-		if inputArray[i] < minElement {
-			minElement = inputArray[i]
-		}
-		if inputArray[i] > maxElement {
-			maxElement = inputArray[i]
-		}
-	}
-	var countInput int
-	for elemtnValue := minElement; elemtnValue <= maxElement; elemtnValue++ {
-		countInput = 0
-		for j := 0; j < len(inputArray); j++ {
-			if inputArray[j] == elemtnValue {
-				countInput++
-				break
-			}
-		}
-		if countInput == 0 {
-			result = elemtnValue
-			break
+	sort.Slice(inputArray[:], func(i, j int) bool {
+		return inputArray[i] < inputArray[j]
+	})
+
+	for i := 0; i < len(inputArray)-1; i++ {
+		if inputArray[i]+1 != inputArray[i+1] {
+			return inputArray[i] + 1
 		}
 	}
 
-	return result
+	return -1
 
 }
